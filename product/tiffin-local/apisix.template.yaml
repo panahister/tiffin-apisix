@@ -1,0 +1,78 @@
+# Tiffin-owned APISIX route source. The sample's scripts/up.sh renders its generated/apisix.yaml from
+# this repository checkout and injects only workstation TLS material and the selected auth profile.
+# Change this file, not the generated output in the sample repository.
+#
+# What the edge does, and what it leaves to the services:
+#
+#   * it ends TLS. Behind it the services speak cleartext: HTTP/1.1 for REST, HTTP/2 for gRPC;
+#   * it routes by path to the service that owns the path, REST and gRPC through the same door;
+#   * it gives every request an identity, which the service uses in its logs and in its answers;
+#   * it limits how often one address may browse the menus without a token.
+#
+# It does not decide who a caller is. It passes the bearer token on, and every service validates it for
+# itself on every request: a gateway that validates as well is one more wall, never the only one
+# (MP Core ADR-007). That second wall is a switch, EDGE_AUTH in infrastructure/.env: off, or keycloak.
+#
+# Payments has no route here. It is called by other services only, over gRPC, with a token of the
+# calling service; nothing outside the platform reaches it.
+
+upstreams:
+  - { id: access-rest,        type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6100": 1 } }
+  - { id: media-rest,         type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6200": 1 } }
+  - { id: restaurants-rest,   type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6300": 1 } }
+  - { id: ordering-rest,      type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6400": 1 } }
+  - { id: ordering-grpc,      type: roundrobin, scheme: grpc, nodes: { "${{BACKEND_HOST}}:6401": 1 } }
+  - { id: dispatch-grpc,      type: roundrobin, scheme: grpc, nodes: { "${{BACKEND_HOST}}:6701": 1 } }
+  - { id: kitchen-rest,       type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6600": 1 } }
+  - { id: tracking-rest,      type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6800": 1 } }
+  - { id: notifications-rest, type: roundrobin, scheme: http, nodes: { "${{BACKEND_HOST}}:6900": 1 } }
+
+# What the routes that need a token share. scripts/up.sh writes it, from the switch.
+plugin_configs:
+  - id: needs-a-token
+    plugins:
+__EDGE_AUTH__
+
+global_rules:
+  - id: request-identity
+    plugins:
+      request-id:
+        header_name: X-Request-Id
+        include_in_response: true
+
+routes:
+  # Anybody may read a menu, so anybody can be asked to slow down.
+  - id: menus-browse
+    uri: /v1/restaurants*
+    methods: [GET]
+    priority: 20
+    upstream_id: restaurants-rest
+    plugins:
+      limit-count:
+        count: 40
+        time_window: 10
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+
+  - { id: access,        uri: "/v1/access/*",        priority: 10, upstream_id: access-rest,        plugin_config_id: needs-a-token }
+  - { id: media,         uri: "/v1/media/*",         priority: 10, upstream_id: media-rest,         plugin_config_id: needs-a-token }
+  - { id: restaurants,   uri: "/v1/restaurants*",    priority: 10, upstream_id: restaurants-rest,   plugin_config_id: needs-a-token }
+  - { id: orders,        uri: "/v1/orders*",         priority: 10, upstream_id: ordering-rest,      plugin_config_id: needs-a-token }
+  - { id: kitchen,       uri: "/v1/kitchen/*",       priority: 10, upstream_id: kitchen-rest,       plugin_config_id: needs-a-token }
+  - { id: tracking,      uri: "/v1/tracking/*",      priority: 10, upstream_id: tracking-rest,      plugin_config_id: needs-a-token }
+  - { id: notifications, uri: "/v1/notifications/*", priority: 10, upstream_id: notifications-rest, plugin_config_id: needs-a-token }
+
+  # A gRPC method is a path: /<package>.<Service>/<Method>.
+  - { id: ordering-grpc, uri: "/tiffin.ordering.v1.*", upstream_id: ordering-grpc, plugin_config_id: needs-a-token }
+  - { id: dispatch-grpc, uri: "/tiffin.dispatch.v1.*", upstream_id: dispatch-grpc, plugin_config_id: needs-a-token }
+
+ssls:
+  - id: this-machine
+    snis: ["localhost"]
+    cert: |
+__CERTIFICATE__
+    key: |
+__KEY__
+#END

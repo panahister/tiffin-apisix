@@ -1,0 +1,16 @@
+# EDGE_AUTH=keycloak: what a route that needs a token does at the edge.
+#
+# The token is verified here, with the realm's public keys (use_jwks): no call to Keycloak per request.
+# Nothing is added to the request: the backend receives the Authorization header it would have received,
+# and no header that says who the caller is.
+openid-connect:
+  discovery: http://keycloak:8080/realms/tiffin/.well-known/openid-configuration
+  realm: tiffin
+  client_id: tiffin-edge
+  client_secret: lab-only-edge-secret
+  bearer_only: true
+  use_jwks: true
+  token_signing_alg_values_expected: RS256
+  set_access_token_header: false
+  set_id_token_header: false
+  set_userinfo_header: false

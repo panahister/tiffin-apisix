@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible route, TLS, identity, or APISIX profile defect
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Never include private keys, credentials, tokens, or production network details.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include APISIX image, auth profile, backend revision, and repository revision.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and redacted evidence
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: This report contains no secret or private key.
+          required: true
+        - label: This is not an undisclosed security vulnerability.
+          required: true

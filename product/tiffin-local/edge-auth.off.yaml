@@ -1,0 +1,6 @@
+# EDGE_AUTH=off: a route that needs a token does nothing about it at the edge. The backend decides.
+# A plugin that answers nothing stands here, so that the routes are the same in both cases.
+serverless-pre-function:
+  phase: rewrite
+  functions:
+    - "return function() end"

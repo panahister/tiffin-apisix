@@ -1,0 +1,14 @@
+# Apache APISIX as the edge of Tiffin, in standalone mode: the routes are read from apisix.yaml, next
+# to this file. There is no etcd and no Admin API, so nothing can change a route but a file.
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+
+apisix:
+  node_listen:
+    - port: 9080
+  ssl:
+    enable: true
+    listen:
+      - port: 9443

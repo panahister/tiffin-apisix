@@ -1,0 +1,14 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*.log
+.env
+.env.*
+!.env.example
+generated/
+*.crt
+*.key
+__pycache__/
+*.pyc

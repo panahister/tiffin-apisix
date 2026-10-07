@@ -1,0 +1,48 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Verify source and renderer contracts
+        run: python -m unittest discover -s tests -v
+      - name: Create ephemeral TLS material
+        run: >-
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1
+          -subj /CN=localhost
+          -addext subjectAltName=DNS:localhost,IP:127.0.0.1
+          -keyout /tmp/tiffin-apisix.key
+          -out /tmp/tiffin-apisix.crt
+      - name: Render the Keycloak edge profile
+        run: >-
+          python scripts/render.py
+          --auth keycloak
+          --certificate /tmp/tiffin-apisix.crt
+          --private-key /tmp/tiffin-apisix.key
+          --output /tmp/apisix.yaml
+      - name: Validate with the pinned APISIX image
+        run: >-
+          docker run --rm
+          -e BACKEND_HOST=host.docker.internal
+          -v "$PWD/product/tiffin-local/config.yaml:/usr/local/apisix/conf/config.yaml:ro"
+          -v "/tmp/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro"
+          apache/apisix:3.18.0-debian
+          apisix init
